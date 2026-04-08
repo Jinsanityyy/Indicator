@@ -17,21 +17,21 @@ stBear     = stDir > 0
 buySignal  = stBull and stBear[1]
 sellSignal = stBear and stBull[1]
 
-// ─── BACKGROUND — very subtle glow per trend direction ────────────────────────
-bgcolor(stBull ? color.new(#003d2e, 90) : color.new(#1a0030, 90))
+// ─── BACKGROUND ───────────────────────────────────────────────────────────────
+bgcolor(stBull ? color.new(#003d2e, 75) : color.new(#1a0030, 75))
 
-// ─── CLOUD RIBBON — atmospheric, behind white candles ─────────────────────────
+// ─── CLOUD RIBBON ─────────────────────────────────────────────────────────────
 cf = ta.ema(close, cloudF)
 cs = ta.ema(close, cloudS)
-pCF = plot(cf, display=display.none)
-pCS = plot(cs, display=display.none)
-// Bull: deep teal glow / Bear: deep violet glow
-fill(pCF, pCS, stBull ? color.new(#00ffd5, 82) : color.new(#7b00ff, 80))
+// Use transparent color on lines so they're invisible but fill still renders
+pCF = plot(cf, color=color.new(color.white, 100))
+pCS = plot(cs, color=color.new(color.white, 100))
+fill(pCF, pCS, stBull ? color.new(#00ffd5, 55) : color.new(#7b00ff, 55))
 
-// Supertrend — thin glowing line, no value in title
-plot(stVal, "ST", color=stBull ? color.new(#00ffd5, 50) : color.new(#ff3cac, 50), linewidth=1, display=display.pane)
+// Supertrend line
+plot(stVal, "ST", color=stBull ? color.new(#00ffd5, 40) : color.new(#ff3cac, 40), linewidth=2, display=display.pane)
 
-// ─── CANDLE COLOR — white/silver (no green/red) ───────────────────────────────
+// ─── CANDLE COLOR — white/silver ─────────────────────────────────────────────
 barcolor(color.new(color.white, 15))
 
 // ─── BUY / SELL SIGNALS ───────────────────────────────────────────────────────
