@@ -169,16 +169,33 @@ if chochBull
 if chochBear
     label.new(bar_index, low - atr * 0.4, "CHoCH", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.normal)
 
-// ─── SL / TP LINES (ternary, not inside if blocks) ────────────────────────────
-line.new(buyOk ? bar_index : na, buyOk ? close - atr * slMult  : na, buyOk ? bar_index + 15 : na, buyOk ? close - atr * slMult  : na, color=color.red,   width=2, style=line.style_dashed)
-line.new(buyOk ? bar_index : na, buyOk ? close + atr * tp1Mult : na, buyOk ? bar_index + 15 : na, buyOk ? close + atr * tp1Mult : na, color=color.lime,  width=1, style=line.style_dashed)
-line.new(buyOk ? bar_index : na, buyOk ? close + atr * tp2Mult : na, buyOk ? bar_index + 15 : na, buyOk ? close + atr * tp2Mult : na, color=color.green, width=2, style=line.style_dashed)
-line.new(sellOk ? bar_index : na, sellOk ? close + atr * slMult  : na, sellOk ? bar_index + 15 : na, sellOk ? close + atr * slMult  : na, color=color.red,   width=2, style=line.style_dashed)
-line.new(sellOk ? bar_index : na, sellOk ? close - atr * tp1Mult : na, sellOk ? bar_index + 15 : na, sellOk ? close - atr * tp1Mult : na, color=color.lime,  width=1, style=line.style_dashed)
-line.new(sellOk ? bar_index : na, sellOk ? close - atr * tp2Mult : na, sellOk ? bar_index + 15 : na, sellOk ? close - atr * tp2Mult : na, color=color.green, width=2, style=line.style_dashed)
+// ─── SL / TP LINES + PRICE LABELS ────────────────────────────────────────────
+line.new(buyOk ? bar_index : na, buyOk ? close - atr * slMult  : na, buyOk ? bar_index + 50 : na, buyOk ? close - atr * slMult  : na, color=color.red,   width=2, style=line.style_dashed)
+line.new(buyOk ? bar_index : na, buyOk ? close + atr * tp1Mult : na, buyOk ? bar_index + 50 : na, buyOk ? close + atr * tp1Mult : na, color=color.lime,  width=2, style=line.style_dashed)
+line.new(buyOk ? bar_index : na, buyOk ? close + atr * tp2Mult : na, buyOk ? bar_index + 50 : na, buyOk ? close + atr * tp2Mult : na, color=color.green, width=2, style=line.style_dashed)
+line.new(sellOk ? bar_index : na, sellOk ? close + atr * slMult  : na, sellOk ? bar_index + 50 : na, sellOk ? close + atr * slMult  : na, color=color.red,   width=2, style=line.style_dashed)
+line.new(sellOk ? bar_index : na, sellOk ? close - atr * tp1Mult : na, sellOk ? bar_index + 50 : na, sellOk ? close - atr * tp1Mult : na, color=color.lime,  width=2, style=line.style_dashed)
+line.new(sellOk ? bar_index : na, sellOk ? close - atr * tp2Mult : na, sellOk ? bar_index + 50 : na, sellOk ? close - atr * tp2Mult : na, color=color.green, width=2, style=line.style_dashed)
+
+if buyOk
+    label.new(bar_index + 51, close - atr * slMult,  "SL: "    + str.tostring(math.round(close - atr * slMult,  2)), style=label.style_label_left, color=color.red,           textcolor=color.white, size=size.small)
+if buyOk
+    label.new(bar_index + 51, close + atr * tp1Mult, "TP1: "   + str.tostring(math.round(close + atr * tp1Mult, 2)), style=label.style_label_left, color=color.lime,          textcolor=color.black, size=size.small)
+if buyOk
+    label.new(bar_index + 51, close + atr * tp2Mult, "TP2: "   + str.tostring(math.round(close + atr * tp2Mult, 2)), style=label.style_label_left, color=color.green,         textcolor=color.white, size=size.small)
+if buyOk
+    label.new(bar_index,      close,                 "ENTRY: " + str.tostring(math.round(close,                 2)), style=label.style_label_right, color=color.blue,         textcolor=color.white, size=size.small)
+if sellOk
+    label.new(bar_index + 51, close + atr * slMult,  "SL: "    + str.tostring(math.round(close + atr * slMult,  2)), style=label.style_label_left, color=color.red,           textcolor=color.white, size=size.small)
+if sellOk
+    label.new(bar_index + 51, close - atr * tp1Mult, "TP1: "   + str.tostring(math.round(close - atr * tp1Mult, 2)), style=label.style_label_left, color=color.lime,          textcolor=color.black, size=size.small)
+if sellOk
+    label.new(bar_index + 51, close - atr * tp2Mult, "TP2: "   + str.tostring(math.round(close - atr * tp2Mult, 2)), style=label.style_label_left, color=color.green,         textcolor=color.white, size=size.small)
+if sellOk
+    label.new(bar_index,      close,                 "ENTRY: " + str.tostring(math.round(close,                 2)), style=label.style_label_right, color=color.blue,         textcolor=color.white, size=size.small)
 
 // ─── DASHBOARD TABLE ──────────────────────────────────────────────────────────
-var table dash = table.new(position.bottom_left, 2, 14, bgcolor=color.new(color.black, 60), border_color=color.gray, border_width=1, frame_color=color.gray, frame_width=1)
+var table dash = table.new(position.top_right, 2, 14, bgcolor=color.new(color.black, 60), border_color=color.gray, border_width=1, frame_color=color.gray, frame_width=1)
 
 sigStr  = buyOk   ? "BUY"          : sellOk  ? "SELL"         : noTrade ? "NO TRADE"    : "WAIT"
 sigClr  = buyOk   ? color.lime     : sellOk  ? color.red      : noTrade ? color.gray     : color.yellow
