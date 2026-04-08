@@ -1,5 +1,5 @@
 //@version=6
-indicator("Tradex Algo", shorttitle="Tradex Algo", overlay=true, max_lines_count=100, max_labels_count=50)
+indicator("Tradex Algo", shorttitle="TradexAlgo", overlay=true, max_lines_count=100, max_labels_count=50)
 
 // ─── INPUTS ───────────────────────────────────────────────────────────────────
 stAtrLen  = input.int(10,    "ATR Length",      minval=1,   group="Supertrend")
@@ -36,12 +36,12 @@ pCF = plot(cf, color=color.new(color.white, 100))
 pCS = plot(cs, color=color.new(color.white, 100))
 fill(pCF, pCS, stBull ? color.new(#00ffd5, 55) : color.new(#7b00ff, 55))
 
-// Supertrend line — turns orange when near flip
+// Supertrend line — turns gold when near flip
 plot(stVal, "ST",
-     color    = nearFlip ? color.new(#ffd700, 20) :
-                stBull   ? color.new(#00ffd5, 40) :
-                           color.new(#ff3cac, 40),
-     linewidth = nearFlip ? 3 : 2,
+     color   = nearFlip ? color.new(#ffd700, 20) :
+               stBull   ? color.new(#00ffd5, 40) :
+                          color.new(#ff3cac, 40),
+     linewidth = 2,
      display   = display.pane)
 
 // ─── CANDLE COLOR — white/silver ─────────────────────────────────────────────
