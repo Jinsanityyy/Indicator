@@ -1,0 +1,145 @@
+//@version=6
+indicator("Million Moves Algo [XAUUSD 5m]", overlay=true, max_lines_count=500, max_labels_count=300)
+
+// ─── INPUTS ───────────────────────────────────────────────────────────────────
+stAtrLen = input.int(10,    "ATR Length",      minval=1,   group="Supertrend")
+stFactor = input.float(3.0, "Factor",          minval=0.1, group="Supertrend")
+tp1R     = input.float(1.5, "TP1 Multiplier",  minval=0.1, group="Risk Management")
+tp2R     = input.float(2.5, "TP2 Multiplier",  minval=0.1, group="Risk Management")
+tp3R     = input.float(3.5, "TP3 Multiplier",  minval=0.1, group="Risk Management")
+cloudF   = input.int(20,    "Cloud EMA Fast",  minval=1,   group="Cloud")
+cloudM   = input.int(50,    "Cloud EMA Mid",   minval=1,   group="Cloud")
+cloudS   = input.int(100,   "Cloud EMA Slow",  minval=1,   group="Cloud")
+
+// ─── SUPERTREND ───────────────────────────────────────────────────────────────
+[stVal, stDir] = ta.supertrend(stFactor, stAtrLen)
+stBull     = stDir < 0
+stBear     = stDir > 0
+buySignal  = stBull and stBear[1]
+sellSignal = stBear and stBull[1]
+
+// ─── CLOUD (3-layer EMA ribbon) ───────────────────────────────────────────────
+cf = ta.ema(close, cloudF)
+cm = ta.ema(close, cloudM)
+cs = ta.ema(close, cloudS)
+
+pCF = plot(cf, "EMA Fast", color=color.new(color.fuchsia, 95))
+pCM = plot(cm, "EMA Mid",  color=color.new(color.fuchsia, 95))
+pCS = plot(cs, "EMA Slow", color=color.new(color.fuchsia, 95))
+fill(pCF, pCM, stBull ? color.new(color.fuchsia, 55) : color.new(color.purple, 65))
+fill(pCM, pCS, stBull ? color.new(color.fuchsia, 70) : color.new(color.purple, 75))
+
+// Supertrend line
+plot(stVal, "Supertrend", color=stBull ? color.new(color.lime, 50) : color.new(color.red, 50), linewidth=2)
+
+// ─── CANDLE COLORS ────────────────────────────────────────────────────────────
+barcolor(stBull ? color.new(color.lime, 0) : color.new(color.red, 0))
+
+// ─── BUY / SELL SIGNALS ───────────────────────────────────────────────────────
+plotshape(buySignal,  "BUY",  shape.labelup,   location.belowbar, color=color.lime, textcolor=color.black, text="BUY",  size=size.normal)
+plotshape(sellSignal, "SELL", shape.labeldown, location.abovebar, color=color.red,  textcolor=color.white, text="SELL", size=size.normal)
+
+// ─── TRADE LEVEL TRACKING ─────────────────────────────────────────────────────
+var float entryPx = na
+var float slPx    = na
+var float tp1Px   = na
+var float tp2Px   = na
+var float tp3Px   = na
+
+if buySignal or sellSignal
+    entryPx := close
+    slPx    := stVal
+    r        = math.abs(entryPx - slPx)
+    tp1Px   := buySignal ? entryPx + r * tp1R : entryPx - r * tp1R
+    tp2Px   := buySignal ? entryPx + r * tp2R : entryPx - r * tp2R
+    tp3Px   := buySignal ? entryPx + r * tp3R : entryPx - r * tp3R
+    // Draw persistent horizontal lines (extend right indefinitely)
+    line.new(bar_index, entryPx, bar_index + 1, entryPx, color=color.orange,             width=2, style=line.style_dashed, extend=extend.right)
+    line.new(bar_index, slPx,    bar_index + 1, slPx,    color=color.red,                width=2, style=line.style_solid,  extend=extend.right)
+    line.new(bar_index, tp1Px,   bar_index + 1, tp1Px,   color=color.new(color.teal, 0), width=1, style=line.style_dotted, extend=extend.right)
+    line.new(bar_index, tp2Px,   bar_index + 1, tp2Px,   color=color.new(color.teal, 0), width=1, style=line.style_dotted, extend=extend.right)
+    line.new(bar_index, tp3Px,   bar_index + 1, tp3Px,   color=color.new(color.teal, 0), width=1, style=line.style_dotted, extend=extend.right)
+
+// ─── FLOATING LABELS (update every bar to stay at right edge) ─────────────────
+var label entryLbl = label.new(bar_index, close, "", style=label.style_label_left, color=color.orange,            textcolor=color.black, size=size.small)
+var label slLbl    = label.new(bar_index, close, "", style=label.style_label_left, color=color.red,               textcolor=color.white, size=size.small)
+var label tp1Lbl   = label.new(bar_index, close, "", style=label.style_label_left, color=color.new(color.teal,0), textcolor=color.black, size=size.small)
+var label tp2Lbl   = label.new(bar_index, close, "", style=label.style_label_left, color=color.new(color.teal,0), textcolor=color.black, size=size.small)
+var label tp3Lbl   = label.new(bar_index, close, "", style=label.style_label_left, color=color.new(color.teal,0), textcolor=color.black, size=size.small)
+
+if not na(entryPx)
+    label.set_x(entryLbl, bar_index + 5)
+    label.set_y(entryLbl, entryPx)
+    label.set_text(entryLbl, "Entry : " + str.tostring(math.round(entryPx, 2)))
+    label.set_x(slLbl, bar_index + 5)
+    label.set_y(slLbl, slPx)
+    label.set_text(slLbl, "Stop loss: " + str.tostring(math.round(slPx, 2)))
+    label.set_x(tp1Lbl, bar_index + 5)
+    label.set_y(tp1Lbl, tp1Px)
+    label.set_text(tp1Lbl, "TP 1 : " + str.tostring(math.round(tp1Px, 2)))
+    label.set_x(tp2Lbl, bar_index + 5)
+    label.set_y(tp2Lbl, tp2Px)
+    label.set_text(tp2Lbl, "TP 2 : " + str.tostring(math.round(tp2Px, 2)))
+    label.set_x(tp3Lbl, bar_index + 5)
+    label.set_y(tp3Lbl, tp3Px)
+    label.set_text(tp3Lbl, "TP 3 : " + str.tostring(math.round(tp3Px, 2)))
+
+// ─── MULTI-TF SUPERTREND ──────────────────────────────────────────────────────
+f_stBull(fac, aLen) =>
+    [_, d] = ta.supertrend(fac, aLen)
+    d < 0
+
+bull1m  = request.security(syminfo.tickerid, "1",  f_stBull(stFactor, stAtrLen), lookahead=barmerge.lookahead_off)
+bull5m  = request.security(syminfo.tickerid, "5",  f_stBull(stFactor, stAtrLen), lookahead=barmerge.lookahead_off)
+bull15m = request.security(syminfo.tickerid, "15", f_stBull(stFactor, stAtrLen), lookahead=barmerge.lookahead_off)
+bull30m = request.security(syminfo.tickerid, "30", f_stBull(stFactor, stAtrLen), lookahead=barmerge.lookahead_off)
+bull1h  = request.security(syminfo.tickerid, "60", f_stBull(stFactor, stAtrLen), lookahead=barmerge.lookahead_off)
+bull1d  = request.security(syminfo.tickerid, "D",  f_stBull(stFactor, stAtrLen), lookahead=barmerge.lookahead_off)
+
+bullCount = (bull1m ? 1 : 0) + (bull5m ? 1 : 0) + (bull15m ? 1 : 0) + (bull30m ? 1 : 0) + (bull1h ? 1 : 0) + (bull1d ? 1 : 0)
+avgBull   = bullCount >= 4
+
+// ─── DASHBOARD TABLE ──────────────────────────────────────────────────────────
+var table dash = table.new(position.bottom_right, 2, 9,
+     bgcolor=color.new(color.black, 60),
+     border_color=color.new(color.gray, 40), border_width=1,
+     frame_color=color.new(color.gray, 40), frame_width=1)
+
+f_row(bull) =>
+    [bull ? "Up" : "Dn", bull ? color.lime : color.red]
+
+[t1m,  c1m]  = f_row(bull1m)
+[t5m,  c5m]  = f_row(bull5m)
+[t15m, c15m] = f_row(bull15m)
+[t30m, c30m] = f_row(bull30m)
+[t1h,  c1h]  = f_row(bull1h)
+[t1d,  c1d]  = f_row(bull1d)
+[tAvg, cAvg] = f_row(avgBull)
+
+volOk = volume > ta.sma(volume, 20)
+dk    = color.new(color.black, 65)
+hd    = color.new(color.black, 50)
+wh    = color.white
+
+table.cell(dash, 0, 0, "Trend", text_color=wh, bgcolor=hd, text_size=size.small)
+table.cell(dash, 1, 0, "TF",    text_color=wh, bgcolor=hd, text_size=size.small)
+table.cell(dash, 0, 1, t1m,  text_color=c1m,  bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 1, "1",   text_color=wh,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0, 2, t5m,  text_color=c5m,  bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 2, "5",   text_color=wh,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0, 3, t15m, text_color=c15m, bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 3, "15",  text_color=wh,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0, 4, t30m, text_color=c30m, bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 4, "30",  text_color=wh,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0, 5, t1h,  text_color=c1h,  bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 5, "1H",  text_color=wh,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0, 6, t1d,  text_color=c1d,  bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 6, "1D",  text_color=wh,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0, 7, tAvg, text_color=cAvg, bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 7, "AVG", text_color=wh,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0, 8, volOk ? "Hi" : "Lo", text_color=volOk ? color.lime : color.red, bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 8, "Vol", text_color=wh, bgcolor=dk, text_size=size.small)
+
+// ─── ALERTS ───────────────────────────────────────────────────────────────────
+alertcondition(buySignal,  "BUY Signal",  "BUY — XAUUSD 5m: Supertrend flipped Bullish")
+alertcondition(sellSignal, "SELL Signal", "SELL — XAUUSD 5m: Supertrend flipped Bearish")
