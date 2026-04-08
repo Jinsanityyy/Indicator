@@ -30,8 +30,8 @@ e5   = ta.ema(close, emaF)
 e20  = ta.ema(close, emaM1)
 e50  = ta.ema(close, emaM2)
 e200 = ta.ema(close, emaS)
-emaBull = e5 > e20 and e20 > e50 and e50 > e200
-emaBear = e5 < e20 and e20 < e50 and e50 < e200
+emaBull = e5 > e20 and e20 > e50
+emaBear = e5 < e20 and e20 < e50
 
 // ─── RSI ──────────────────────────────────────────────────────────────────────
 rsiVal = ta.rsi(close, rsiLen)
@@ -85,21 +85,23 @@ isDist  = rng >= atr * 3.0
 amdBG   = isAccum ? color.new(color.blue, 85) : isManip ? color.new(color.red, 85) : isDist ? color.new(color.green, 85) : na
 
 // ─── ZONE CHECK ───────────────────────────────────────────────────────────────
-inSupply = close >= shVal - atr * 0.3 and close <= shVal + atr * 0.1
-inDemand = close >= slVal - atr * 0.1 and close <= slVal + atr * 0.3
+inSupply = high >= shVal - atr * 1.0
+inDemand = low  <= slVal + atr * 1.0
 
 // ─── CANDLE CONFIRMATION ──────────────────────────────────────────────────────
-bullBar = close > open and close > high[1]
-bearBar = close < open and close < low[1]
+bullBar = close > open
+bearBar = close < open
 
 // ─── NO TRADE ─────────────────────────────────────────────────────────────────
 noTrade = isAccum or isManip or rsiVal >= rsiOB or rsiVal <= rsiOS
 
 // ─── COOLDOWN + SIGNAL CONDITIONS ─────────────────────────────────────────────
 var int lastSigBar = 0
-cdOk   = bar_index - lastSigBar >= cooldown
-buyOk  = bias == 1  and emaBull and rsiVal > rsiBullMin and rsiVal < rsiOB and macdHist > 0 and macdCrossUp   and inDemand and bullBar and volOk and not noTrade and cdOk
-sellOk = bias == -1 and emaBear and rsiVal < rsiBearMax and rsiVal > rsiOS and macdHist < 0 and macdCrossDown and inSupply  and bearBar and volOk and not noTrade and cdOk
+cdOk    = bar_index - lastSigBar >= cooldown
+macdBull = macdHist > 0 and (macdCrossUp or macdHist > macdHist[1])
+macdBear = macdHist < 0 and (macdCrossDown or macdHist < macdHist[1])
+buyOk  = bias == 1  and emaBull and rsiVal > rsiBullMin and rsiVal < rsiOB and macdBull and inDemand and bullBar and volOk and not noTrade and cdOk
+sellOk = bias == -1 and emaBear and rsiVal < rsiBearMax and rsiVal > rsiOS and macdBear and inSupply  and bearBar and volOk and not noTrade and cdOk
 
 // ─── ANNOTATION FUNCTIONS — all plot/bgcolor/plotshape/alertcondition BEFORE if blocks ───
 plot(e5,   "EMA 5",   color=color.yellow, linewidth=1)
