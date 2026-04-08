@@ -79,9 +79,9 @@ isLL = isSwingL and low[swingLen]  < slPrev
 rngH    = ta.highest(high, amdLen)
 rngL    = ta.lowest(low,  amdLen)
 rng     = rngH - rngL
-isAccum = rng < atr * 1.5
-isManip = rng >= atr * 1.5 and rng < atr * 3.0 and math.abs(close - open) > atr * 0.5
-isDist  = rng >= atr * 3.0
+isAccum = rng < atr * 2.5
+isManip = rng >= atr * 2.5 and rng < atr * 5.0 and math.abs(close - open) > atr * 0.7
+isDist  = rng >= atr * 5.0
 amdBG   = isAccum ? color.new(color.blue, 85) : isManip ? color.new(color.red, 85) : isDist ? color.new(color.green, 85) : na
 
 // ─── ZONE CHECK ───────────────────────────────────────────────────────────────
@@ -109,7 +109,11 @@ plot(e20,  "EMA 20",  color=color.orange, linewidth=1)
 plot(e50,  "EMA 50",  color=color.red,    linewidth=1)
 plot(e200, "EMA 200", color=color.purple, linewidth=2)
 
-bgcolor(amdBG, title="AMD Phase Background")
+var label amdLbl = label.new(na, na, "", style=label.style_label_left, size=size.small, xloc=xloc.bar_index, textcolor=color.white)
+label.set_x(amdLbl, bar_index + 3)
+label.set_y(amdLbl, ta.highest(high, 20) + atr * 0.8)
+label.set_text(amdLbl, isAccum ? "ACCUMULATION" : isManip ? "MANIPULATION" : isDist ? "DISTRIBUTION" : "")
+label.set_color(amdLbl, isAccum ? color.new(color.blue, 10) : isManip ? color.new(color.red, 10) : isDist ? color.new(color.teal, 10) : color.gray)
 
 plotshape(buyOk,  "BUY",  shape.labelup,   location.belowbar, color=color.lime, textcolor=color.black, text="BUY",  size=size.normal)
 plotshape(sellOk, "SELL", shape.labeldown, location.abovebar, color=color.red,  textcolor=color.white, text="SELL", size=size.normal)
@@ -121,10 +125,12 @@ alertcondition(chochBull, "CHoCH Bullish", "CHoCH Bull - Change of Character UP"
 alertcondition(chochBear, "CHoCH Bearish", "CHoCH Bear - Change of Character DOWN")
 
 // ─── VAR TRACKING (after annotation calls) ────────────────────────────────────
-var float lastEntry = na
-var float lastSL    = na
-var float lastTP1   = na
-var float lastTP2   = na
+var float  lastEntry     = na
+var float  lastSL        = na
+var float  lastTP1       = na
+var float  lastTP2       = na
+var string lastStructStr = "Neutral"
+var color  lastStructClr = color.gray
 
 if buyOk
     lastSigBar := bar_index
@@ -148,6 +154,23 @@ if sellOk
     lastTP2 := close - atr * tp2Mult
 
 // ─── SUPPLY / DEMAND ZONES ────────────────────────────────────────────────────
+if chochBull
+    lastStructStr := "CHoCH Bull"
+if chochBull
+    lastStructClr := color.lime
+if chochBear
+    lastStructStr := "CHoCH Bear"
+if chochBear
+    lastStructClr := color.red
+if bosBull and not chochBull
+    lastStructStr := "BOS Bull"
+if bosBull and not chochBull
+    lastStructClr := color.blue
+if bosBear and not chochBear
+    lastStructStr := "BOS Bear"
+if bosBear and not chochBear
+    lastStructClr := color.orange
+
 if isSwingH
     box.new(bar_index - swingLen, high[swingLen] + atr * 0.1, bar_index - swingLen + zoneExt, high[swingLen] - atr * 0.3, border_color=color.red, bgcolor=color.new(color.red, 80), border_width=1)
 if isSwingL
@@ -220,7 +243,8 @@ tp1Str   = not na(lastTP1)   ? str.tostring(math.round(lastTP1,   2)) : "---"
 tp2Str   = not na(lastTP2)   ? str.tostring(math.round(lastTP2,   2)) : "---"
 rrRaw    = not na(lastTP1) and not na(lastSL) and not na(lastEntry) and math.abs(lastEntry - lastSL) > 0 ? math.abs(lastTP1 - lastEntry) / math.abs(lastEntry - lastSL) : float(na)
 rrStr    = not na(rrRaw) ? str.tostring(math.round(rrRaw, 2)) : "---"
-lstStr   = chochBull ? "CHoCH Bull" : chochBear ? "CHoCH Bear" : bosBull ? "BOS Bull" : bosBear ? "BOS Bear" : "None"
+lstStr   = lastStructStr
+lstClr   = lastStructClr
 
 wh = color.white
 dk = color.new(color.black, 70)
@@ -250,5 +274,5 @@ table.cell(dash, 0,  11, "TP2",       text_color=wh,         bgcolor=dk, text_si
 table.cell(dash, 1,  11, tp2Str,      text_color=color.lime, bgcolor=dk, text_size=size.small)
 table.cell(dash, 0,  12, "R:R",       text_color=wh,         bgcolor=dk, text_size=size.small)
 table.cell(dash, 1,  12, rrStr,       text_color=wh,         bgcolor=dk, text_size=size.small)
-table.cell(dash, 0,  13, "STRUCTURE", text_color=wh,         bgcolor=dk, text_size=size.small)
-table.cell(dash, 1,  13, lstStr,      text_color=wh,         bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  13, "STRUCTURE", text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  13, lstStr,      text_color=lstClr,       bgcolor=dk, text_size=size.small)
