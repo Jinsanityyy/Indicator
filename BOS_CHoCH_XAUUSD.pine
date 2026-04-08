@@ -1,0 +1,314 @@
+//@version=6
+indicator("BOS CHoCH Gold Scalper [XAUUSD 15m]", overlay=true, max_boxes_count=100, max_lines_count=500, max_labels_count=500)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Market Structure
+swingLen    = input.int(5,    "Swing Length",           minval=1,   group="Market Structure")
+zoneExt     = input.int(20,   "Zone Extension Bars",    minval=1,   group="Market Structure")
+
+// EMA
+emaF        = input.int(5,    "EMA 5",                  minval=1,   group="EMA Settings")
+emaM1       = input.int(20,   "EMA 20",                 minval=1,   group="EMA Settings")
+emaM2       = input.int(50,   "EMA 50",                 minval=1,   group="EMA Settings")
+emaS        = input.int(200,  "EMA 200",                minval=1,   group="EMA Settings")
+
+// RSI
+rsiLen      = input.int(14,   "RSI Length",             minval=1,   group="RSI Settings")
+rsiOB       = input.float(70, "Overbought Level",       minval=50,  group="RSI Settings")
+rsiOS       = input.float(30, "Oversold Level",         maxval=50,  group="RSI Settings")
+rsiBullMin  = input.float(50, "RSI Bull Min Filter",    minval=40,  group="RSI Settings")
+rsiBearMax  = input.float(50, "RSI Bear Max Filter",    maxval=60,  group="RSI Settings")
+
+// MACD
+macdFast    = input.int(12,   "MACD Fast",              minval=1,   group="MACD Settings")
+macdSlow    = input.int(26,   "MACD Slow",              minval=1,   group="MACD Settings")
+macdSigLen  = input.int(9,    "MACD Signal",            minval=1,   group="MACD Settings")
+
+// ATR / Risk
+atrLen      = input.int(14,   "ATR Length",             minval=1,   group="ATR / Risk")
+slMult      = input.float(1.5,"SL ATR Multiplier",      minval=0.1, group="ATR / Risk")
+tp1Mult     = input.float(2.0,"TP1 ATR Multiplier",     minval=0.1, group="ATR / Risk")
+tp2Mult     = input.float(3.0,"TP2 ATR Multiplier",     minval=0.1, group="ATR / Risk")
+
+// Volume
+volLen      = input.int(20,   "Volume MA Length",       minval=1,   group="Volume")
+volMult     = input.float(1.0,"Volume Multiplier",      minval=0.1, group="Volume")
+
+// AMD Phase
+amdLen      = input.int(20,   "AMD Detection Length",   minval=5,   group="AMD Phase")
+
+// Signals
+cooldown    = input.int(5,    "Signal Cooldown Bars",   minval=1,   group="Signals")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMA CALCULATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+e5   = ta.ema(close, emaF)
+e20  = ta.ema(close, emaM1)
+e50  = ta.ema(close, emaM2)
+e200 = ta.ema(close, emaS)
+
+plot(e5,   "EMA 5",   color=color.yellow, linewidth=1)
+plot(e20,  "EMA 20",  color=color.orange, linewidth=1)
+plot(e50,  "EMA 50",  color=color.red,    linewidth=1)
+plot(e200, "EMA 200", color=color.purple, linewidth=2)
+
+emaBull = e5 > e20 and e20 > e50 and e50 > e200
+emaBear = e5 < e20 and e20 < e50 and e50 < e200
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RSI
+// ═══════════════════════════════════════════════════════════════════════════════
+rsiVal = ta.rsi(close, rsiLen)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MACD
+// ═══════════════════════════════════════════════════════════════════════════════
+[macdLine, macdSigLine, macdHist] = ta.macd(close, macdFast, macdSlow, macdSigLen)
+macdCrossUp   = ta.crossover(macdLine, macdSigLine)
+macdCrossDown = ta.crossunder(macdLine, macdSigLine)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATR + VOLUME
+// ═══════════════════════════════════════════════════════════════════════════════
+atr   = ta.atr(atrLen)
+volMA = ta.sma(volume, volLen)
+volOk = volume > volMA * volMult
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SWING HIGH / LOW  — using ta.valuewhen (NO var float reassignment)
+// ═══════════════════════════════════════════════════════════════════════════════
+isSwingH = ta.highestbars(high, swingLen * 2 + 1) == -swingLen
+isSwingL = ta.lowestbars(low,  swingLen * 2 + 1) == -swingLen
+
+shVal  = ta.valuewhen(isSwingH, high[swingLen], 0)
+slVal  = ta.valuewhen(isSwingL, low[swingLen],  0)
+shPrev = ta.valuewhen(isSwingH, high[swingLen], 1)
+slPrev = ta.valuewhen(isSwingL, low[swingLen],  1)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARKET STRUCTURE — BOS + CHoCH
+// ═══════════════════════════════════════════════════════════════════════════════
+bosBull = ta.crossover(close, shVal)
+bosBear = ta.crossunder(close, slVal)
+
+var int bias = 0
+
+if bosBull and bias <= 0
+    bias := 1
+if bosBear and bias >= 0
+    bias := -1
+
+chochBull = bosBull and bias[1] == -1
+chochBear = bosBear and bias[1] == 1
+
+// HH / HL / LH / LL labels
+isHH = isSwingH and high[swingLen] > shPrev
+isLH = isSwingH and high[swingLen] < shPrev
+isHL = isSwingL and low[swingLen]  > slPrev
+isLL = isSwingL and low[swingLen]  < slPrev
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AMD PHASE DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+rngH = ta.highest(high, amdLen)
+rngL = ta.lowest(low,  amdLen)
+rng  = rngH - rngL
+
+isAccum = rng < atr * 1.5
+isManip = rng >= atr * 1.5 and rng < atr * 3.0 and math.abs(close - open) > atr * 0.5
+isDist  = rng >= atr * 3.0
+
+amdBG = isAccum ? color.new(color.blue,  85) : isManip ? color.new(color.red, 85) : isDist ? color.new(color.green, 85) : na
+bgcolor(amdBG, title="AMD Phase Background")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUPPLY / DEMAND ZONES — one statement per if block
+// ═══════════════════════════════════════════════════════════════════════════════
+if isSwingH
+    box.new(bar_index - swingLen, high[swingLen] + atr * 0.1, bar_index - swingLen + zoneExt, high[swingLen] - atr * 0.3, border_color=color.red, bgcolor=color.new(color.red, 80), border_width=1)
+
+if isSwingL
+    box.new(bar_index - swingLen, low[swingLen] + atr * 0.3, bar_index - swingLen + zoneExt, low[swingLen] - atr * 0.1, border_color=color.green, bgcolor=color.new(color.green, 80), border_width=1)
+
+inSupply = close >= shVal - atr * 0.3 and close <= shVal + atr * 0.1
+inDemand = close >= slVal - atr * 0.1 and close <= slVal + atr * 0.3
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STRUCTURE LABELS — HH / HL / LH / LL / BOS / CHoCH
+// ═══════════════════════════════════════════════════════════════════════════════
+if isHH
+    label.new(bar_index - swingLen, high[swingLen] + atr * 0.3, "HH", style=label.style_label_down, color=color.new(color.teal, 60), textcolor=color.white, size=size.small)
+
+if isLH
+    label.new(bar_index - swingLen, high[swingLen] + atr * 0.3, "LH", style=label.style_label_down, color=color.new(color.orange, 60), textcolor=color.white, size=size.small)
+
+if isHL
+    label.new(bar_index - swingLen, low[swingLen] - atr * 0.3, "HL", style=label.style_label_up, color=color.new(color.teal, 60), textcolor=color.white, size=size.small)
+
+if isLL
+    label.new(bar_index - swingLen, low[swingLen] - atr * 0.3, "LL", style=label.style_label_up, color=color.new(color.orange, 60), textcolor=color.white, size=size.small)
+
+if bosBull and not chochBull
+    label.new(bar_index, high + atr * 0.3, "BOS", style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
+
+if bosBear and not chochBear
+    label.new(bar_index, low - atr * 0.3, "BOS", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+
+if chochBull
+    label.new(bar_index, high + atr * 0.4, "CHoCH", style=label.style_label_down, color=color.lime, textcolor=color.black, size=size.normal)
+
+if chochBear
+    label.new(bar_index, low - atr * 0.4, "CHoCH", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.normal)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CANDLE CONFIRMATION
+// ═══════════════════════════════════════════════════════════════════════════════
+bullBar = close > open and close > high[1]
+bearBar = close < open and close < low[1]
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NO TRADE FILTER
+// ═══════════════════════════════════════════════════════════════════════════════
+noTrade = isAccum or isManip or rsiVal >= rsiOB or rsiVal <= rsiOS
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SIGNAL COOLDOWN — declared globally
+// ═══════════════════════════════════════════════════════════════════════════════
+var int lastSigBar = 0
+cdOk = bar_index - lastSigBar >= cooldown
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUY / SELL CONDITIONS — ALL filters must align
+// ═══════════════════════════════════════════════════════════════════════════════
+buyOk  = bias == 1  and emaBull and rsiVal > rsiBullMin and rsiVal < rsiOB and macdHist > 0 and macdCrossUp   and inDemand and bullBar and volOk and not noTrade and cdOk
+sellOk = bias == -1 and emaBear and rsiVal < rsiBearMax and rsiVal > rsiOS and macdHist < 0 and macdCrossDown and inSupply  and bearBar and volOk and not noTrade and cdOk
+
+if buyOk
+    lastSigBar := bar_index
+if sellOk
+    lastSigBar := bar_index
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SL / TP TRACKING — declared globally, assigned in separate if blocks
+// ═══════════════════════════════════════════════════════════════════════════════
+var float lastEntry = na
+var float lastSL    = na
+var float lastTP1   = na
+var float lastTP2   = na
+
+if buyOk
+    lastEntry := close
+if buyOk
+    lastSL    := close - atr * slMult
+if buyOk
+    lastTP1   := close + atr * tp1Mult
+if buyOk
+    lastTP2   := close + atr * tp2Mult
+
+if sellOk
+    lastEntry := close
+if sellOk
+    lastSL    := close + atr * slMult
+if sellOk
+    lastTP1   := close - atr * tp1Mult
+if sellOk
+    lastTP2   := close - atr * tp2Mult
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SL / TP LINES — ternary operators, NOT inside if blocks (per user requirement)
+// ═══════════════════════════════════════════════════════════════════════════════
+line.new(buyOk ? bar_index : na, buyOk ? close - atr * slMult  : na, buyOk ? bar_index + 15 : na, buyOk ? close - atr * slMult  : na, color=color.red,           width=2, style=line.style_dashed)
+line.new(buyOk ? bar_index : na, buyOk ? close + atr * tp1Mult : na, buyOk ? bar_index + 15 : na, buyOk ? close + atr * tp1Mult : na, color=color.lime,          width=1, style=line.style_dashed)
+line.new(buyOk ? bar_index : na, buyOk ? close + atr * tp2Mult : na, buyOk ? bar_index + 15 : na, buyOk ? close + atr * tp2Mult : na, color=color.green,         width=2, style=line.style_dashed)
+line.new(sellOk ? bar_index : na, sellOk ? close + atr * slMult  : na, sellOk ? bar_index + 15 : na, sellOk ? close + atr * slMult  : na, color=color.red,       width=2, style=line.style_dashed)
+line.new(sellOk ? bar_index : na, sellOk ? close - atr * tp1Mult : na, sellOk ? bar_index + 15 : na, sellOk ? close - atr * tp1Mult : na, color=color.lime,      width=1, style=line.style_dashed)
+line.new(sellOk ? bar_index : na, sellOk ? close - atr * tp2Mult : na, sellOk ? bar_index + 15 : na, sellOk ? close - atr * tp2Mult : na, color=color.green,     width=2, style=line.style_dashed)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUY / SELL SIGNAL PLOTS
+// ═══════════════════════════════════════════════════════════════════════════════
+plotshape(buyOk,  "BUY Signal",  shape.labelup,   location.belowbar, color=color.lime,  textcolor=color.black, text="BUY",  size=size.normal)
+plotshape(sellOk, "SELL Signal", shape.labeldown, location.abovebar, color=color.red,   textcolor=color.white, text="SELL", size=size.normal)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD TABLE — declared globally, table.cell called without if wrapper
+// ═══════════════════════════════════════════════════════════════════════════════
+var table dash = table.new(position.bottom_left, 2, 15, bgcolor=color.new(color.black, 60), border_color=color.gray, border_width=1, frame_color=color.gray, frame_width=1)
+
+sigStr  = buyOk    ? "BUY"          : sellOk   ? "SELL"         : noTrade ? "NO TRADE"    : "WAIT"
+sigClr  = buyOk    ? color.lime     : sellOk   ? color.red      : noTrade ? color.gray     : color.yellow
+
+phStr   = isAccum  ? "Accumulation" : isManip  ? "Manipulation" : isDist  ? "Distribution" : "Neutral"
+phClr   = isAccum  ? color.blue     : isManip  ? color.red      : isDist  ? color.lime      : color.gray
+
+biasStr = bias == 1 ? "Bullish"    : bias == -1 ? "Bearish"     : "Neutral"
+biasClr = bias == 1 ? color.lime   : bias == -1 ? color.red     : color.gray
+
+trendStr = emaBull ? "Bull Stack"  : emaBear  ? "Bear Stack"    : "Mixed"
+trendClr = emaBull ? color.lime    : emaBear  ? color.red       : color.yellow
+
+macdStr  = macdHist > 0 and macdCrossUp   ? "Bull Cross" : macdHist < 0 and macdCrossDown ? "Bear Cross" : macdHist > 0 ? "Bullish" : "Bearish"
+macdClr  = macdHist > 0 ? color.lime : color.red
+
+rsiStr   = str.tostring(math.round(rsiVal, 1))
+rsiClr   = rsiVal >= rsiOB ? color.red : rsiVal <= rsiOS ? color.lime : color.yellow
+
+volStr   = volOk ? "Above Avg" : "Below Avg"
+volClr   = volOk ? color.lime  : color.red
+
+atrStr   = str.tostring(math.round(atr, 2))
+
+entStr   = not na(lastEntry) ? str.tostring(math.round(lastEntry, 2)) : "---"
+slStr    = not na(lastSL)    ? str.tostring(math.round(lastSL,    2)) : "---"
+tp1Str   = not na(lastTP1)   ? str.tostring(math.round(lastTP1,   2)) : "---"
+tp2Str   = not na(lastTP2)   ? str.tostring(math.round(lastTP2,   2)) : "---"
+
+rrRaw    = not na(lastTP1) and not na(lastSL) and not na(lastEntry) and math.abs(lastEntry - lastSL) > 0 ? math.abs(lastTP1 - lastEntry) / math.abs(lastEntry - lastSL) : float(na)
+rrStr    = not na(rrRaw) ? str.tostring(math.round(rrRaw, 2)) : "---"
+
+lastStruct = chochBull ? "CHoCH Bull" : chochBear ? "CHoCH Bear" : bosBull ? "BOS Bull" : bosBear ? "BOS Bear" : "None"
+
+wh = color.white
+dk = color.new(color.black, 70)
+
+table.cell(dash, 0,  0,  "SIGNAL",      text_color=wh,          bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  0,  sigStr,        text_color=sigClr,       bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  1,  "PHASE",       text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  1,  phStr,         text_color=phClr,        bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  2,  "BIAS",        text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  2,  biasStr,       text_color=biasClr,      bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  3,  "TREND",       text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  3,  trendStr,      text_color=trendClr,     bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  4,  "MACD",        text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  4,  macdStr,       text_color=macdClr,      bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  5,  "RSI",         text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  5,  rsiStr,        text_color=rsiClr,       bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  6,  "VOLUME",      text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  6,  volStr,        text_color=volClr,       bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  7,  "ATR",         text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  7,  atrStr,        text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  8,  "ENTRY",       text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  8,  entStr,        text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  9,  "SL",          text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  9,  slStr,         text_color=color.red,    bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  10, "TP1",         text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  10, tp1Str,        text_color=color.lime,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  11, "TP2",         text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  11, tp2Str,        text_color=color.lime,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  12, "R:R",         text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  12, rrStr,         text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 0,  13, "STRUCTURE",   text_color=wh,           bgcolor=dk, text_size=size.small)
+table.cell(dash, 1,  13, lastStruct,    text_color=wh,           bgcolor=dk, text_size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+alertcondition(buyOk,      title="BUY Signal",     message="BUY Signal - XAUUSD 15m Gold Scalper: All filters aligned")
+alertcondition(sellOk,     title="SELL Signal",    message="SELL Signal - XAUUSD 15m Gold Scalper: All filters aligned")
+alertcondition(noTrade,    title="NO TRADE",       message="NO TRADE - Accumulation/Manipulation phase or RSI extreme")
+alertcondition(chochBull,  title="CHoCH Bullish",  message="CHoCH Bullish - Bearish to Bullish Change of Character detected")
+alertcondition(chochBear,  title="CHoCH Bearish",  message="CHoCH Bearish - Bullish to Bearish Change of Character detected")
