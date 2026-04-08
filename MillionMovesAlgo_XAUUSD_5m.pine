@@ -2,13 +2,14 @@
 indicator("Tradex Algo", shorttitle="Tradex Algo", overlay=true, max_lines_count=100, max_labels_count=50)
 
 // ─── INPUTS ───────────────────────────────────────────────────────────────────
-stAtrLen = input.int(10,    "ATR Length",      minval=1,   group="Supertrend")
-stFactor = input.float(3.0, "Factor",          minval=0.1, group="Supertrend")
-tp1R     = input.float(1.5, "TP1 Multiplier",  minval=0.1, group="Risk Management")
-tp2R     = input.float(2.5, "TP2 Multiplier",  minval=0.1, group="Risk Management")
-tp3R     = input.float(3.5, "TP3 Multiplier",  minval=0.1, group="Risk Management")
-cloudF   = input.int(9,     "Cloud EMA Fast",  minval=1,   group="Cloud")
-cloudS   = input.int(21,    "Cloud EMA Slow",  minval=1,   group="Cloud")
+stAtrLen  = input.int(10,    "ATR Length",      minval=1,   group="Supertrend")
+stFactor  = input.float(3.0, "Factor",          minval=0.1, group="Supertrend")
+tp1R      = input.float(1.5, "TP1 Multiplier",  minval=0.1, group="Risk Management")
+tp2R      = input.float(2.5, "TP2 Multiplier",  minval=0.1, group="Risk Management")
+tp3R      = input.float(3.5, "TP3 Multiplier",  minval=0.1, group="Risk Management")
+cloudF    = input.int(9,     "Cloud EMA Fast",  minval=1,   group="Cloud")
+cloudS    = input.int(21,    "Cloud EMA Slow",  minval=1,   group="Cloud")
+flipThres = input.float(0.4, "Flip Zone (x ATR)", minval=0.1, maxval=1.0, group="Flip Warning")
 
 // ─── SUPERTREND ───────────────────────────────────────────────────────────────
 [stVal, stDir] = ta.supertrend(stFactor, stAtrLen)
@@ -17,40 +18,59 @@ stBear     = stDir > 0
 buySignal  = stBull and stBear[1]
 sellSignal = stBear and stBull[1]
 
+// ─── FLIP WARNING — price approaching Supertrend line ─────────────────────────
+atrVal    = ta.atr(stAtrLen)
+distToST  = math.abs(close - stVal)
+nearFlip  = distToST < atrVal * flipThres and not buySignal and not sellSignal
+
 // ─── BACKGROUND ───────────────────────────────────────────────────────────────
-bgcolor(stBull ? color.new(#003d2e, 75) : color.new(#1a0030, 75))
+// Yellow flash when near flip, otherwise teal/purple per trend
+bgcolor(nearFlip  ? color.new(#ffd700, 82) :
+        stBull    ? color.new(#003d2e, 75) :
+                    color.new(#1a0030, 75))
 
 // ─── CLOUD RIBBON ─────────────────────────────────────────────────────────────
-cf = ta.ema(close, cloudF)
-cs = ta.ema(close, cloudS)
-// Use transparent color on lines so they're invisible but fill still renders
+cf  = ta.ema(close, cloudF)
+cs  = ta.ema(close, cloudS)
 pCF = plot(cf, color=color.new(color.white, 100))
 pCS = plot(cs, color=color.new(color.white, 100))
 fill(pCF, pCS, stBull ? color.new(#00ffd5, 55) : color.new(#7b00ff, 55))
 
-// Supertrend line
-plot(stVal, "ST", color=stBull ? color.new(#00ffd5, 40) : color.new(#ff3cac, 40), linewidth=2, display=display.pane)
+// Supertrend line — turns orange when near flip
+plot(stVal, "ST",
+     color    = nearFlip ? color.new(#ffd700, 20) :
+                stBull   ? color.new(#00ffd5, 40) :
+                           color.new(#ff3cac, 40),
+     linewidth = nearFlip ? 3 : 2,
+     display   = display.pane)
 
 // ─── CANDLE COLOR — white/silver ─────────────────────────────────────────────
 barcolor(color.new(color.white, 15))
 
+// ─── FLIP WARNING SHAPES ─────────────────────────────────────────────────────
+// Diamond dot above/below candle when close to Supertrend (⚠ possible flip soon)
+plotshape(nearFlip and stBull, "⚠ Near Flip (Bull→Bear)", shape.diamond,
+          location.abovebar, color=color.new(#ffd700, 20), size=size.tiny)
+plotshape(nearFlip and stBear, "⚠ Near Flip (Bear→Bull)", shape.diamond,
+          location.belowbar, color=color.new(#ffd700, 20), size=size.tiny)
+
 // ─── BUY / SELL SIGNALS ───────────────────────────────────────────────────────
-plotshape(buySignal,  "BUY",  shape.labelup,   location.belowbar, color=color.new(#00ffd5, 0), textcolor=color.black, text="▲", size=size.small)
-plotshape(sellSignal, "SELL", shape.labeldown, location.abovebar, color=color.new(#ff3cac, 0), textcolor=color.white, text="▼", size=size.small)
+plotshape(buySignal,  "BUY",  shape.labelup,   location.belowbar,
+          color=color.new(#00ffd5, 0), textcolor=color.black, text="▲", size=size.small)
+plotshape(sellSignal, "SELL", shape.labeldown, location.abovebar,
+          color=color.new(#ff3cac, 0), textcolor=color.white, text="▼", size=size.small)
 
 // ─── TRADE LEVEL TRACKING ─────────────────────────────────────────────────────
-var float entryPx = na
-var float slPx    = na
-var float tp1Px   = na
-var float tp2Px   = na
-var float tp3Px   = na
-
-// Track lines — delete old ones before creating new
-var line lineEntry = na
-var line lineSL    = na
-var line lineTP1   = na
-var line lineTP2   = na
-var line lineTP3   = na
+var float entryPx  = na
+var float slPx     = na
+var float tp1Px    = na
+var float tp2Px    = na
+var float tp3Px    = na
+var line  lineEntry = na
+var line  lineSL    = na
+var line  lineTP1   = na
+var line  lineTP2   = na
+var line  lineTP3   = na
 
 if buySignal or sellSignal
     entryPx := close
@@ -59,20 +79,18 @@ if buySignal or sellSignal
     tp1Px   := buySignal ? entryPx + r * tp1R : entryPx - r * tp1R
     tp2Px   := buySignal ? entryPx + r * tp2R : entryPx - r * tp2R
     tp3Px   := buySignal ? entryPx + r * tp3R : entryPx - r * tp3R
-    // Delete previous lines
     line.delete(lineEntry)
     line.delete(lineSL)
     line.delete(lineTP1)
     line.delete(lineTP2)
     line.delete(lineTP3)
-    // Create fresh lines for latest signal only
     lineEntry := line.new(bar_index, entryPx, bar_index + 1, entryPx, color=color.orange,            width=2, style=line.style_dashed, extend=extend.right)
     lineSL    := line.new(bar_index, slPx,    bar_index + 1, slPx,    color=color.red,               width=2, style=line.style_solid,  extend=extend.right)
     lineTP1   := line.new(bar_index, tp1Px,   bar_index + 1, tp1Px,   color=color.new(color.teal,0), width=1, style=line.style_dotted, extend=extend.right)
     lineTP2   := line.new(bar_index, tp2Px,   bar_index + 1, tp2Px,   color=color.new(color.teal,0), width=1, style=line.style_dotted, extend=extend.right)
     lineTP3   := line.new(bar_index, tp3Px,   bar_index + 1, tp3Px,   color=color.new(color.teal,0), width=1, style=line.style_dotted, extend=extend.right)
 
-// ─── FLOATING LABELS (stay at right edge, update every bar) ───────────────────
+// ─── FLOATING LABELS ─────────────────────────────────────────────────────────
 var label entryLbl = label.new(bar_index, close, "", style=label.style_label_left, color=color.orange,            textcolor=color.black, size=size.small)
 var label slLbl    = label.new(bar_index, close, "", style=label.style_label_left, color=color.red,               textcolor=color.white, size=size.small)
 var label tp1Lbl   = label.new(bar_index, close, "", style=label.style_label_left, color=color.new(color.teal,0), textcolor=color.black, size=size.small)
@@ -82,19 +100,19 @@ var label tp3Lbl   = label.new(bar_index, close, "", style=label.style_label_lef
 if not na(entryPx)
     label.set_x(entryLbl, bar_index + 5)
     label.set_y(entryLbl, entryPx)
-    label.set_text(entryLbl, "Entry : " + str.tostring(math.round(entryPx, 2)))
+    label.set_text(entryLbl, "Entry : "    + str.tostring(math.round(entryPx, 2)))
     label.set_x(slLbl, bar_index + 5)
     label.set_y(slLbl, slPx)
-    label.set_text(slLbl, "Stop loss: " + str.tostring(math.round(slPx, 2)))
+    label.set_text(slLbl,    "Stop loss: " + str.tostring(math.round(slPx,    2)))
     label.set_x(tp1Lbl, bar_index + 5)
     label.set_y(tp1Lbl, tp1Px)
-    label.set_text(tp1Lbl, "TP 1 : " + str.tostring(math.round(tp1Px, 2)))
+    label.set_text(tp1Lbl,   "TP 1 : "    + str.tostring(math.round(tp1Px,   2)))
     label.set_x(tp2Lbl, bar_index + 5)
     label.set_y(tp2Lbl, tp2Px)
-    label.set_text(tp2Lbl, "TP 2 : " + str.tostring(math.round(tp2Px, 2)))
+    label.set_text(tp2Lbl,   "TP 2 : "    + str.tostring(math.round(tp2Px,   2)))
     label.set_x(tp3Lbl, bar_index + 5)
     label.set_y(tp3Lbl, tp3Px)
-    label.set_text(tp3Lbl, "TP 3 : " + str.tostring(math.round(tp3Px, 2)))
+    label.set_text(tp3Lbl,   "TP 3 : "    + str.tostring(math.round(tp3Px,   2)))
 
 // ─── MULTI-TF SUPERTREND ──────────────────────────────────────────────────────
 f_stBull(fac, aLen) =>
@@ -112,7 +130,7 @@ bullCount = (bull1m ? 1 : 0) + (bull5m ? 1 : 0) + (bull15m ? 1 : 0) + (bull30m ?
 avgBull   = bullCount >= 4
 
 // ─── DASHBOARD TABLE (top right) ──────────────────────────────────────────────
-var table dash = table.new(position.top_right, 2, 9,
+var table dash = table.new(position.top_right, 2, 10,
      bgcolor=color.new(color.black, 60),
      border_color=color.new(color.gray, 40), border_width=1,
      frame_color=color.new(color.gray, 40), frame_width=1)
@@ -128,10 +146,12 @@ f_row(bull) =>
 [t1d,  c1d]  = f_row(bull1d)
 [tAvg, cAvg] = f_row(avgBull)
 
-volOk = volume > ta.sma(volume, 20)
-dk    = color.new(color.black, 65)
-hd    = color.new(color.black, 50)
-wh    = color.white
+volOk    = volume > ta.sma(volume, 20)
+flipStr  = nearFlip ? "⚠ NEAR" : "Safe"
+flipClr  = nearFlip ? color.new(#ffd700, 0) : color.new(color.gray, 0)
+dk       = color.new(color.black, 65)
+hd       = color.new(color.black, 50)
+wh       = color.white
 
 table.cell(dash, 0, 0, "Trend", text_color=wh, bgcolor=hd, text_size=size.small)
 table.cell(dash, 1, 0, "TF",    text_color=wh, bgcolor=hd, text_size=size.small)
@@ -151,11 +171,12 @@ table.cell(dash, 0, 7, tAvg, text_color=cAvg, bgcolor=dk, text_size=size.small)
 table.cell(dash, 1, 7, "AVG", text_color=wh,   bgcolor=dk, text_size=size.small)
 table.cell(dash, 0, 8, volOk ? "Hi" : "Lo", text_color=volOk ? color.lime : color.red, bgcolor=dk, text_size=size.small)
 table.cell(dash, 1, 8, "Vol", text_color=wh,   bgcolor=dk, text_size=size.small)
+table.cell(dash, 0, 9, flipStr, text_color=flipClr, bgcolor=nearFlip ? color.new(#3a3000, 60) : dk, text_size=size.small)
+table.cell(dash, 1, 9, "Flip",  text_color=wh,       bgcolor=nearFlip ? color.new(#3a3000, 60) : dk, text_size=size.small)
 
 // ─── ALERTS ───────────────────────────────────────────────────────────────────
-// Basic: fires on every Supertrend flip
-alertcondition(buySignal,  "BUY Signal",         "TRADEX ALGO — BUY: Supertrend flipped Bullish")
-alertcondition(sellSignal, "SELL Signal",         "TRADEX ALGO — SELL: Supertrend flipped Bearish")
-// Confirmed: fires only when majority of timeframes agree
-alertcondition(buySignal  and bullCount >= 4, "BUY Confirmed (MTF)",  "TRADEX ALGO — BUY CONFIRMED: 4+ Timeframes Bullish")
-alertcondition(sellSignal and bullCount <= 2, "SELL Confirmed (MTF)", "TRADEX ALGO — SELL CONFIRMED: 4+ Timeframes Bearish")
+alertcondition(buySignal,                     "BUY Signal",          "TRADEX ALGO — BUY: Supertrend flipped Bullish")
+alertcondition(sellSignal,                    "SELL Signal",         "TRADEX ALGO — SELL: Supertrend flipped Bearish")
+alertcondition(buySignal  and bullCount >= 4, "BUY Confirmed (MTF)", "TRADEX ALGO — BUY CONFIRMED: 4+ Timeframes Bullish")
+alertcondition(sellSignal and bullCount <= 2, "SELL Confirmed (MTF)","TRADEX ALGO — SELL CONFIRMED: 4+ Timeframes Bearish")
+alertcondition(nearFlip,                      "⚠ Near Flip",         "TRADEX ALGO — ⚠ WARNING: Price approaching Supertrend — Flip incoming!")
