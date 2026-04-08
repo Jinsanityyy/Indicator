@@ -7,8 +7,6 @@ stFactor = input.float(3.0, "Factor",          minval=0.1, group="Supertrend")
 tp1R     = input.float(1.5, "TP1 Multiplier",  minval=0.1, group="Risk Management")
 tp2R     = input.float(2.5, "TP2 Multiplier",  minval=0.1, group="Risk Management")
 tp3R     = input.float(3.5, "TP3 Multiplier",  minval=0.1, group="Risk Management")
-cloudF   = input.int(9,     "Cloud EMA Fast",  minval=1,   group="Cloud")
-cloudS   = input.int(21,    "Cloud EMA Slow",  minval=1,   group="Cloud")
 
 // ─── SUPERTREND ───────────────────────────────────────────────────────────────
 [stVal, stDir] = ta.supertrend(stFactor, stAtrLen)
@@ -17,26 +15,14 @@ stBear     = stDir > 0
 buySignal  = stBull and stBear[1]
 sellSignal = stBear and stBull[1]
 
-// ─── BACKGROUND (subtle trend color behind candles) ───────────────────────────
-bgcolor(stBull ? color.new(color.teal,   93) : color.new(color.purple, 93))
+// ─── MINIMAL VISUALS ─────────────────────────────────────────────────────────
+// No bgcolor, no cloud, no candle coloring — pure clean chart
+// Only a very subtle Supertrend dot line for reference
+plot(stVal, "ST", color=color.new(color.white, 80), linewidth=1, style=plot.style_circles, display=display.pane)
 
-// ─── CLOUD (EMA ribbon — tight, follows price) ────────────────────────────────
-cf = ta.ema(close, cloudF)
-cs = ta.ema(close, cloudS)
-
-pCF = plot(cf, "EMA Fast", display=display.none)
-pCS = plot(cs, "EMA Slow", display=display.none)
-fill(pCF, pCS, stBull ? color.new(color.fuchsia, 55) : color.new(color.purple, 60))
-
-// Supertrend line (display=display.pane hides value from title bar)
-plot(stVal, "Supertrend", color=stBull ? color.new(color.lime, 40) : color.new(color.red, 40), linewidth=2, display=display.pane)
-
-// ─── CANDLE COLORS ────────────────────────────────────────────────────────────
-barcolor(stBull ? color.new(color.lime, 0) : color.new(color.red, 0))
-
-// ─── BUY / SELL SIGNALS ───────────────────────────────────────────────────────
-plotshape(buySignal,  "BUY",  shape.labelup,   location.belowbar, color=color.lime, textcolor=color.black, text="BUY",  size=size.normal)
-plotshape(sellSignal, "SELL", shape.labeldown, location.abovebar, color=color.red,  textcolor=color.white, text="SELL", size=size.normal)
+// ─── BUY / SELL SIGNALS — small, clean dots only ─────────────────────────────
+plotshape(buySignal,  "BUY",  shape.circle, location.belowbar, color=color.new(color.lime, 20), size=size.tiny)
+plotshape(sellSignal, "SELL", shape.circle, location.abovebar, color=color.new(color.red,  20), size=size.tiny)
 
 // ─── TRADE LEVEL TRACKING ─────────────────────────────────────────────────────
 var float entryPx = na
