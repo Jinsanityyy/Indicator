@@ -80,7 +80,7 @@ rngH    = ta.highest(high, amdLen)
 rngL    = ta.lowest(low,  amdLen)
 rng     = rngH - rngL
 isAccum = rng < atr * 2.5
-isManip = rng >= atr * 2.5 and rng < atr * 5.0 and math.abs(close - open) > atr * 0.7
+isManip = rng >= atr * 2.5 and rng < atr * 5.0
 isDist  = rng >= atr * 5.0
 amdBG   = isAccum ? color.new(color.blue, 85) : isManip ? color.new(color.red, 85) : isDist ? color.new(color.green, 85) : na
 
