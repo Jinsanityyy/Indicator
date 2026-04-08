@@ -1,5 +1,5 @@
 //@version=6
-indicator("Million Moves Algo [XAUUSD 5m]", overlay=true, max_lines_count=500, max_labels_count=300)
+indicator("Million Moves Algo [XAUUSD 5m]", overlay=true, max_lines_count=100, max_labels_count=50)
 
 // ─── INPUTS ───────────────────────────────────────────────────────────────────
 stAtrLen = input.int(10,    "ATR Length",      minval=1,   group="Supertrend")
@@ -7,9 +7,8 @@ stFactor = input.float(3.0, "Factor",          minval=0.1, group="Supertrend")
 tp1R     = input.float(1.5, "TP1 Multiplier",  minval=0.1, group="Risk Management")
 tp2R     = input.float(2.5, "TP2 Multiplier",  minval=0.1, group="Risk Management")
 tp3R     = input.float(3.5, "TP3 Multiplier",  minval=0.1, group="Risk Management")
-cloudF   = input.int(20,    "Cloud EMA Fast",  minval=1,   group="Cloud")
-cloudM   = input.int(50,    "Cloud EMA Mid",   minval=1,   group="Cloud")
-cloudS   = input.int(100,   "Cloud EMA Slow",  minval=1,   group="Cloud")
+cloudF   = input.int(9,     "Cloud EMA Fast",  minval=1,   group="Cloud")
+cloudS   = input.int(21,    "Cloud EMA Slow",  minval=1,   group="Cloud")
 
 // ─── SUPERTREND ───────────────────────────────────────────────────────────────
 [stVal, stDir] = ta.supertrend(stFactor, stAtrLen)
@@ -18,19 +17,19 @@ stBear     = stDir > 0
 buySignal  = stBull and stBear[1]
 sellSignal = stBear and stBull[1]
 
-// ─── CLOUD (3-layer EMA ribbon) ───────────────────────────────────────────────
+// ─── BACKGROUND (subtle trend color behind candles) ───────────────────────────
+bgcolor(stBull ? color.new(color.teal,   93) : color.new(color.purple, 93))
+
+// ─── CLOUD (EMA ribbon — tight, follows price) ────────────────────────────────
 cf = ta.ema(close, cloudF)
-cm = ta.ema(close, cloudM)
 cs = ta.ema(close, cloudS)
 
-pCF = plot(cf, "EMA Fast", color=color.new(color.fuchsia, 95))
-pCM = plot(cm, "EMA Mid",  color=color.new(color.fuchsia, 95))
-pCS = plot(cs, "EMA Slow", color=color.new(color.fuchsia, 95))
-fill(pCF, pCM, stBull ? color.new(color.fuchsia, 55) : color.new(color.purple, 65))
-fill(pCM, pCS, stBull ? color.new(color.fuchsia, 70) : color.new(color.purple, 75))
+pCF = plot(cf, "EMA Fast", color=color.new(color.fuchsia, 90))
+pCS = plot(cs, "EMA Slow", color=color.new(color.fuchsia, 90))
+fill(pCF, pCS, stBull ? color.new(color.fuchsia, 55) : color.new(color.purple, 60))
 
 // Supertrend line
-plot(stVal, "Supertrend", color=stBull ? color.new(color.lime, 50) : color.new(color.red, 50), linewidth=2)
+plot(stVal, "Supertrend", color=stBull ? color.new(color.lime, 40) : color.new(color.red, 40), linewidth=2)
 
 // ─── CANDLE COLORS ────────────────────────────────────────────────────────────
 barcolor(stBull ? color.new(color.lime, 0) : color.new(color.red, 0))
@@ -46,6 +45,13 @@ var float tp1Px   = na
 var float tp2Px   = na
 var float tp3Px   = na
 
+// Track lines — delete old ones before creating new
+var line lineEntry = na
+var line lineSL    = na
+var line lineTP1   = na
+var line lineTP2   = na
+var line lineTP3   = na
+
 if buySignal or sellSignal
     entryPx := close
     slPx    := stVal
@@ -53,14 +59,20 @@ if buySignal or sellSignal
     tp1Px   := buySignal ? entryPx + r * tp1R : entryPx - r * tp1R
     tp2Px   := buySignal ? entryPx + r * tp2R : entryPx - r * tp2R
     tp3Px   := buySignal ? entryPx + r * tp3R : entryPx - r * tp3R
-    // Draw persistent horizontal lines (extend right indefinitely)
-    line.new(bar_index, entryPx, bar_index + 1, entryPx, color=color.orange,             width=2, style=line.style_dashed, extend=extend.right)
-    line.new(bar_index, slPx,    bar_index + 1, slPx,    color=color.red,                width=2, style=line.style_solid,  extend=extend.right)
-    line.new(bar_index, tp1Px,   bar_index + 1, tp1Px,   color=color.new(color.teal, 0), width=1, style=line.style_dotted, extend=extend.right)
-    line.new(bar_index, tp2Px,   bar_index + 1, tp2Px,   color=color.new(color.teal, 0), width=1, style=line.style_dotted, extend=extend.right)
-    line.new(bar_index, tp3Px,   bar_index + 1, tp3Px,   color=color.new(color.teal, 0), width=1, style=line.style_dotted, extend=extend.right)
+    // Delete previous lines
+    line.delete(lineEntry)
+    line.delete(lineSL)
+    line.delete(lineTP1)
+    line.delete(lineTP2)
+    line.delete(lineTP3)
+    // Create fresh lines for latest signal only
+    lineEntry := line.new(bar_index, entryPx, bar_index + 1, entryPx, color=color.orange,            width=2, style=line.style_dashed, extend=extend.right)
+    lineSL    := line.new(bar_index, slPx,    bar_index + 1, slPx,    color=color.red,               width=2, style=line.style_solid,  extend=extend.right)
+    lineTP1   := line.new(bar_index, tp1Px,   bar_index + 1, tp1Px,   color=color.new(color.teal,0), width=1, style=line.style_dotted, extend=extend.right)
+    lineTP2   := line.new(bar_index, tp2Px,   bar_index + 1, tp2Px,   color=color.new(color.teal,0), width=1, style=line.style_dotted, extend=extend.right)
+    lineTP3   := line.new(bar_index, tp3Px,   bar_index + 1, tp3Px,   color=color.new(color.teal,0), width=1, style=line.style_dotted, extend=extend.right)
 
-// ─── FLOATING LABELS (update every bar to stay at right edge) ─────────────────
+// ─── FLOATING LABELS (stay at right edge, update every bar) ───────────────────
 var label entryLbl = label.new(bar_index, close, "", style=label.style_label_left, color=color.orange,            textcolor=color.black, size=size.small)
 var label slLbl    = label.new(bar_index, close, "", style=label.style_label_left, color=color.red,               textcolor=color.white, size=size.small)
 var label tp1Lbl   = label.new(bar_index, close, "", style=label.style_label_left, color=color.new(color.teal,0), textcolor=color.black, size=size.small)
@@ -99,8 +111,8 @@ bull1d  = request.security(syminfo.tickerid, "D",  f_stBull(stFactor, stAtrLen),
 bullCount = (bull1m ? 1 : 0) + (bull5m ? 1 : 0) + (bull15m ? 1 : 0) + (bull30m ? 1 : 0) + (bull1h ? 1 : 0) + (bull1d ? 1 : 0)
 avgBull   = bullCount >= 4
 
-// ─── DASHBOARD TABLE ──────────────────────────────────────────────────────────
-var table dash = table.new(position.bottom_right, 2, 9,
+// ─── DASHBOARD TABLE (top right) ──────────────────────────────────────────────
+var table dash = table.new(position.top_right, 2, 9,
      bgcolor=color.new(color.black, 60),
      border_color=color.new(color.gray, 40), border_width=1,
      frame_color=color.new(color.gray, 40), frame_width=1)
@@ -138,7 +150,7 @@ table.cell(dash, 1, 6, "1D",  text_color=wh,   bgcolor=dk, text_size=size.small)
 table.cell(dash, 0, 7, tAvg, text_color=cAvg, bgcolor=dk, text_size=size.small)
 table.cell(dash, 1, 7, "AVG", text_color=wh,   bgcolor=dk, text_size=size.small)
 table.cell(dash, 0, 8, volOk ? "Hi" : "Lo", text_color=volOk ? color.lime : color.red, bgcolor=dk, text_size=size.small)
-table.cell(dash, 1, 8, "Vol", text_color=wh, bgcolor=dk, text_size=size.small)
+table.cell(dash, 1, 8, "Vol", text_color=wh,   bgcolor=dk, text_size=size.small)
 
 // ─── ALERTS ───────────────────────────────────────────────────────────────────
 alertcondition(buySignal,  "BUY Signal",  "BUY — XAUUSD 5m: Supertrend flipped Bullish")
